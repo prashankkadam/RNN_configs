@@ -247,4 +247,4 @@ glove_vectors = 'data/glove.6B.100d.txt'
 glove = np.loadtxt(glove_vectors, dtype='str', comments=None)
 print(glove.shape)
 
-
+print(glove.shape)
