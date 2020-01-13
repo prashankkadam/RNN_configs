@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import os
 import re
 import sys
+import gc
 from keras.preprocessing.text import Tokenizer
 from sklearn.utils import shuffle
 from tensorflow.python.client import device_lib
@@ -246,3 +247,36 @@ if not os.path.exists(glove_vectors):
 glove_vectors = 'data/glove.6B.100d.txt'
 glove = np.loadtxt(glove_vectors, dtype='str', comments=None)
 print(glove.shape)
+
+vectors = glove[:, 1:].astype('float')
+words = glove[:, 0]
+
+del glove
+
+print(vectors[100], words[100])
+
+# Checking the shape of the vectors:
+print(vectors.shape)
+
+word_lookup = {word: vector for word, vector in zip(words, vectors)}
+
+embedding_matrix = np.zeros((num_words, vectors.shape[1]))
+
+not_found = 0
+
+for i, word in enumerate(word_idx.keys()):
+    # Lookup for word embeddings
+    vector = word_lookup.get(word, None)
+
+    # Record in matrix
+    if vector is not None:
+        embedding_matrix[1+1, :] = vector
+    else:
+        not_found += 1
+
+print("There are {not_found} words without pre-trained embeddings")
+
+gc.enable()
+del vectors
+gc.collect()
+
