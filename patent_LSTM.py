@@ -406,10 +406,67 @@ model.summary()
 from IPython.display import Image
 
 model_name = 'pre-trained-rnn'
-model_dir  = '/models/'
+model_dir = '/models/'
 
 plot_model(model, to_file=f'{model_dir}{model_name}.png', show_shapes=True)
 
 Image(f'{model_dir}{model_name}'.png)
 
 # Training the model:
+# Callbacks:
+# 1 - Early Stopping - Stop training when the validation loss no longer decreases
+# 2 - Model Checkpoint - Save the best model on the disk
+
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+
+BATCH_SIZE = 2048
+
+
+def make_callbacks(model_name, save=SAVE_MODEL):
+    # Make a list of callbacks for training:
+    callbacks = [EarlyStopping(monitor='val_loss', patience=5)]
+
+    if save:
+        callbacks.append(
+            ModelCheckpoint(
+                f'{model_dir}{model_name}.h5',
+                save_best_only=True,
+                save_weights_only=False))
+
+    return callbacks
+
+
+callbacks = make_callbacks(model_name)
+
+history = model.fit(
+    X_train,
+    y_train,
+    epochs=EPOCHS,
+    batch_size=BATCH_SIZE,
+    verbose=VERBOSE,
+    callbacks=callbacks,
+    validation_data=(X_valid, y_valid))
+
+
+# Once the training is done, we can load back the model so that we do not need to train
+# it again
+def load_and_evaluate(model_name, return_model=False):
+    # Load the trained model and evaluate the log loss and accuracy
+    model = load_model(f'{model_dir}{model_name}.h5')
+    r = model.evaluate(X_valid, y_valid, batch_size=2048, verbose=1)
+
+    valid_crossentropy = r[0]
+    valid_accuracy = r[1]
+
+    print(f'Cross Entropy: {round(valid_crossentropy, 4)}')
+    print(f'Accuracu: {round(100 * valid_accuracy, 2)}%')
+
+    if return_model:
+        return model
+
+
+# This is print the cross entropy loss and accuracy of the model to the console:
+model = load_and_evaluate(model_name, return_model=True)
+
+
+
