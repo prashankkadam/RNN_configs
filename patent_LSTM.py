@@ -270,7 +270,7 @@ for i, word in enumerate(word_idx.keys()):
 
     # Record in matrix
     if vector is not None:
-        embedding_matrix[1+1, :] = vector
+        embedding_matrix[1 + 1, :] = vector
     else:
         not_found += 1
 
@@ -280,3 +280,136 @@ gc.enable()
 del vectors
 gc.collect()
 
+# Normalize and convert the nan to 0
+embedding_matrix = embedding_matrix / \
+                   np.linalg.norm(embedding_matrix, axis=1).reshape((-1, 1))
+
+embedding_matrix = np.nan_to_num(embedding_matrix)
+
+
+def find_closest(query, embedding_matrix, word_idx, idx_word, n=10):
+    # Find the closest word to the query word on the embedding
+    idx = word_idx.get(query, None)
+
+    # Handle the case where the query is not in the vocab:
+    if idx is None:
+        print(f'{query} not found in vocab')
+        return
+    else:
+        vec = embedding_matrix[idx]
+
+        # Handle the case where the word doesn't have an embedding:
+        if np.all(vec == 0):
+            print(f'{query} has no pre-trained embeddings.')
+            return
+        else:
+            # Calculate the distance between vectors and all others
+            dists = np.dot(embedding_matrix, vec)
+
+            # Sort indexes in reverse order
+            idxs = np.argsort(dists)[::-1][:n]
+            sorted_dists = dists[idxs]
+            closest = [idx_word[i] for i in idxs]
+
+    print(f'Query: {query}\n')
+    max_len = max([len(i) for i in closest])
+
+    # Print out the word and cosine distances:
+    for word, dist in zip(closest, sorted_dists):
+        print(f'Word: {word:15} Cosine Similarity: {round(dist, 4)}')
+
+
+# Building the model:
+from keras.models import Sequential, load_model
+from keras.layers import LSTM, Dense, Dropout, Embedding, Masking, Bidirectional
+from keras.optimizers import Adam
+from keras.utils import plot_model
+
+
+# Make a word level RNN with options for pre-trained embeddings:
+def make_word_level_model(num_words, embedding_matrix, lstm_cells=64,
+                          trainable=False, lstm_layers=1, bi_direc=False):
+    model = Sequential()
+
+    # Map words to an embedding:
+    if not trainable:
+        model.add(
+            Embedding(
+                input_dim=num_words,
+                output_dim=embedding_matrix.shape[1],
+                weights=[embedding_matrix],
+                trainable=False,
+                mask_zero=True))
+        model.add(Masking())
+    else:
+        model.add(
+            Embedding(
+                input_dim=num_words,
+                output_dim=embedding_matrix.shape[1],
+                weights=[embedding_matrix],
+                trainable=True))
+
+    # If multiple LSTM layers are to be added:
+    if lstm_layers > 1:
+        for i in range(lstm_layers - 1):
+            model.add(
+                LSTM(
+                    lstm_cells,
+                    return_sequences=True,
+                    dropout=0.1,
+                    recurrent_dropout=0.1))
+
+    # Add final LSTM layer:
+    if bi_direc:
+        model.add(
+            Bidirectional(
+                LSTM(
+                    lstm_cells,
+                    return_sequences=True,
+                    dropout=0.1,
+                    recurrent_dropout=0.1)))
+    else:
+        model.add(
+            LSTM(
+                lstm_cells,
+                return_sequences=True,
+                dropout=0.1,
+                recurrent_dropout=0.1))
+
+    model.add(Dense(num_words, activation='relu'))
+
+    # Dropout for regularization
+    model.add(Dropout(0.5))
+
+    # Output Layer
+    model.add(Dense(num_words, activation='softmax'))
+
+    # Compile the model
+    model.compile(
+        optimizer='adam',
+        loss='categorical_crossentropy',
+        metrics=['accuracy'])
+
+    return model
+
+
+model = make_word_level_model(
+    num_words,
+    embedding_matrix=embedding_matrix,
+    lstm_cells=LSTM_CELLS,
+    trainable=False,
+    lstm_layers=1)
+
+model.summary()
+
+# Plotting the model:
+from IPython.display import Image
+
+model_name = 'pre-trained-rnn'
+model_dir  = '/models/'
+
+plot_model(model, to_file=f'{model_dir}{model_name}.png', show_shapes=True)
+
+Image(f'{model_dir}{model_name}'.png)
+
+# Training the model:
